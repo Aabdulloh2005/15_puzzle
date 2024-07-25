@@ -1,16 +1,33 @@
+import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:puzzle_15/blocs/puzzle_event.dart';
 import 'package:puzzle_15/blocs/puzzle_state.dart';
 
 class PuzzleBloc extends Bloc<PuzzleEvent, PuzzleState> {
+  Timer? _timer;
+
   PuzzleBloc() : super(PuzzleState.initial()) {
     on<PuzzleInitialized>((event, emit) {
       emit(PuzzleState.initial());
     });
 
+    on<PuzzleShuffled>((event, emit) {
+      final tiles = List<int>.from(state.tiles);
+      tiles.shuffle();
+      emit(state.copyWith(tiles: tiles, isCompleted: false, timeElapsed: 0));
+      _startTimer();
+    });
+
     on<TileMoved>((event, emit) {
       final newState = _moveTile(event.tile, state);
       emit(newState);
+      if (newState.isCompleted) {
+        _stopTimer();
+      }
+    });
+
+    on<TimerTicked>((event, emit) {
+      emit(state.copyWith(timeElapsed: state.timeElapsed + 1));
     });
   }
 
@@ -48,5 +65,22 @@ class PuzzleBloc extends Bloc<PuzzleEvent, PuzzleState> {
       }
     }
     return tiles[tiles.length - 1] == 0;
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(Duration(seconds: 1), (timer) {
+      add(TimerTicked());
+    });
+  }
+
+  void _stopTimer() {
+    _timer?.cancel();
+  }
+
+  @override
+  Future<void> close() {
+    _timer?.cancel();
+    return super.close();
   }
 }
